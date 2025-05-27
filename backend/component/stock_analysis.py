@@ -12,14 +12,17 @@ from .tools.SearchLineItems import search_line_items
 from langgraph.prebuilt import ToolNode
 from langchain_community.tools import IncomeStatements, BalanceSheets, CashFlowStatements
 from langchain_community.utilities.financial_datasets import FinancialDatasetsAPIWrapper
-from langchain.tools.render import format_tool_to_openai_function
-from langchain_openai.chat_models import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
-from langgraph.graph import END, StateGraph, MessagesState
-
-from typing import TypedDict, Annotated, Sequence, Literal
-import operator
 import datetime
+
+from typing import TypedDict, Annotated, Sequence
+import operator
+from langchain_core.messages import BaseMessage
+from langchain_openai.chat_models import ChatOpenAI
+from typing import Literal
+from langgraph.graph import END, StateGraph, MessagesState
+from langchain_core.messages import SystemMessage
+from langchain_core.messages import HumanMessage
+
 
 
 ### ----------------------------- Tool Setup ----------------------------- ###
@@ -48,103 +51,136 @@ tool_node = ToolNode(tools)
 
 ### ----------------------------- Model & Prompt Setup ----------------------------- ###
 # Configure the OpenAI GPT-4 model
-llm = ChatOpenAI(model="gpt-4.1", temperature=0).bind_tools(tools)
+llm = ChatOpenAI(model="gpt-4o", temperature=0).bind_tools(tools)
 
 # System prompt for financial analysis
+
 system_prompt = f"""
-You are an AI financial agent with expertise in analyzing businesses using methods similar to those of Warren Buffett.
-Your task is to provide short, accurate, and concise answers to questions about company financials and performance.
+You are an AI financial agent with expertise in analyzing businesses using methods similar to those of Warren Buffett. Your task is to provide short, accurate, and concise answers to questions about company financials and performance.
 
-You use financial tools to answer the questions. The tools give you access to data sources like income statements, stock prices, etc.
+You use financial tools to answer the questions.  The tools give you access to data sources like income statements, stock prices, etc.
 
-Examples:
-Q: What was NVDA's net income for the fiscal year 2023?
-A: The net income for NVDA in 2023 was $2.8 billion.
+Here are a few example questions and answers:
 
-Q: How did NVDA's gross profit in 2023 compare to 2022?
-A: In 2023, NVDA's gross profit increased by 12% compared to 2022.
+# Example 1:
+question: What was NVDA's net income for the fiscal year 2023?
+answer: The net income for NVDA in 2023 was $2.8 billion.
 
-Q: What was NVDA's revenue for Q1 2024?
-A: NVDA's revenue for the first quarter of 2024 was $5.6 billion.
+# Example 2:
+question: How did NVDA's gross profit in 2023 compare to its gross profit in 2022?
+answer: In 2023, NVDA's gross profit increased by 12% compared to 2022.
 
-Guidelines:
-1. Provide accurate financial data.
-2. Use specific figures and percentages.
-3. Compare time periods when relevant.
-4. Keep answers short and to the point.
+# Example 3:
+question: What was NVDA's revenue for the first quarter of 2024?,
+answer: NVDA's revenue for the first quarter of 2024 was $5.6 billion.
 
-The current date is {datetime.date.today().strftime("%Y-%m-%d")}.
+Analyze these examples carefully. Notice how the answers are concise, specific, and directly address the questions asked. They provide precise financial figures and, when applicable, comparative analysis.
+
+When answering questions:
+1. Focus on providing accurate financial data and insights.
+2. Use specific numbers and percentages when available.
+3. Make comparisons between different time periods if relevant.
+4. Keep your answers short, concise, and to the point.
+
+Important: You must be short and concise with your answers.
+
+The current date is {datetime.date.today().strftime("%Y-%m-%d")}
 """
-
 
 ### ----------------------------- Graph State ----------------------------- ###
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], operator.add]
 
 
+# Define the function that determines whether to continue or not
 def should_continue(state: MessagesState) -> Literal["tools", "END"]:
-    last_message = state['messages'][-1]
-    route = "tools" if last_message.tool_calls else "END"
-    print(f"\n🔀 should_continue routing to: {route}")
-    return route
-
-def call_agent(state: MessagesState):
-    print("\n🧠 call_agent invoked")
     messages = state['messages']
-    if not messages or messages[0].content != system_prompt:
-        messages.insert(0, SystemMessage(content=system_prompt))
-    response = llm.invoke(messages)
-    print("🔍 LLM Response:", response)
-    return {"messages": [response]}
+    last_message = messages[-1]
+    # If the LLM makes a tool call, then we route to the "tools" node
+    if last_message.tool_calls:
+        return "tools"
+    # Otherwise, we stop (reply to the user)
+    return END
+
+# Define the function that calls the model
+def call_agent(state: MessagesState):
+    prompt = SystemMessage(
+        content=system_prompt
+    )
+    # Get the messages
+    messages = state['messages']
+
+    # Check if first message in messages is the prompt
+    if messages and messages[0].content != system_prompt:
+        # Add the prompt to the start of the message
+        messages.insert(0, prompt)
+
+    # We return a list, because this will get added to the existing list
+    return {"messages": [llm.invoke(messages)]}
 
 def call_output(state: MessagesState):
-    print("\n✅ call_output invoked")
+    prompt = SystemMessage(
+        content=system_prompt
+    )
+    # Get the messages
     messages = state['messages']
-    if not messages or messages[0].content != system_prompt:
-        messages.insert(0, SystemMessage(content=system_prompt))
-    response = llm.invoke(messages)
-    print("📤 Final Output:", response)
-    return {"messages": [response]}
+
+    # Check if first message in messages is the prompt
+    if messages and messages[0].content != system_prompt:
+        # Add the prompt to the start of the message
+        messages.insert(0, prompt)
+    return {"messages": [llm.invoke(messages)]}
 
 ### ----------------------------- Build the LangGraph Workflow ----------------------------- ###
 workflow = StateGraph(MessagesState)
 
-# Nodes
+# Define the two nodes we will cycle between
 workflow.add_node("agent", call_agent)
 workflow.add_node("tools", tool_node)
 workflow.add_node("output", call_output)
 
-# Entry point
+# Set the entrypoint as `agent`
+# This means that this node is the first one called
 workflow.set_entry_point("agent")
 
-# Routing logic
-workflow.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
+# We now add a conditional edge
+workflow.add_conditional_edges(
+    # First, we define the start node. We use `agent`.
+    # This means these are the edges taken after the `agent` node is called.
+    "agent",
+    # Next, we pass in the function that will determine which node is called next.
+    should_continue,
+    {"tools": "tools", END: END}
+)
+
+# We now add a normal edge from `tools` to `agent`.
+# This means that after `tools` is called, `agent` node is called next.
 workflow.add_edge("tools", "output")
 
-# Compile the workflow
+# Finally, we compile it!
+# This compiles it into a LangChain Runnable,
+# meaning you can use it as you would any other runnable.
+# Note that we're (optionally) passing the memory when compiling the graph
 app = workflow.compile()
 
-
 ### ----------------------------- Run the Workflow ----------------------------- ###
-def ask_agent(question: str):
-    print("\n==============================")
-    print(f"🤔 Question: {question}")
-    print("==============================")
+# Use the Runnable
+def ask_agent(question: str) -> str:
+    """
+    Sends a question to the LangGraph app and returns the final response.
     
-    state = app.invoke(
+    Args:
+        question (str): The user's input or query.
+    
+    Returns:
+        str: The AI agent's final response.
+    """
+    final_state = app.invoke(
         {"messages": [HumanMessage(content=question)]},
         config={"configurable": {"thread_id": 42}}
     )
     
-    response = state["messages"][-1].content
-    print("\n📬 Response:", ' '.join(response.split()))
-    return ' '.join(response.split())
- 
-
-# Example queries
-ask_agent("What is the current price  for AAPL?")
-
-
-
+    output = final_state["messages"][-1].content
+    return ' '.join(output.split())
 
 

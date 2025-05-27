@@ -1,21 +1,17 @@
-import os
-import requests
-from enum import Enum
-from datetime import date
-from typing import List, Optional, Dict, Union
-
-from pydantic import BaseModel, Field
-from langchain_core.tools import tool
-
 from dotenv import load_dotenv
 load_dotenv()
 
+from langchain.pydantic_v1 import BaseModel, Field
+from typing import List, Optional
+from datetime import date
+from enum import Enum
+import os
+from typing import Dict, Union, List
+import requests
+from langchain_core.tools import tool
+
 
 class LineItem(str, Enum):
-    """
-    Enum representing possible financial line items for querying.
-    These include fields from Income Statement, Balance Sheet, and Cash Flow Statement.
-    """
     # Income Statement fields
     consolidated_income = "consolidated_income"
     cost_of_revenue = "cost_of_revenue"
@@ -91,16 +87,8 @@ class LineItem(str, Enum):
 
 
 class SearchLineItemsInput(BaseModel):
-    """
-    Pydantic model that defines the input schema for searching financial line items.
-    Includes validations, descriptions, and example for easier understanding and usage.
-    """
-    tickers: List[str] = Field(
-        ..., description="List of stock tickers to search for."
-    )
-    line_items: List[LineItem] = Field(
-        ..., description="List of financial line items to retrieve."
-    )
+    tickers: List[str] = Field(..., description="List of stock tickers to search for.")
+    line_items: List[LineItem] = Field(..., description="List of financial line items to retrieve.")
     period: str = Field(
         default="ttm",
         description="The time period for the financial data. Valid values are 'annual', 'quarterly', or 'ttm' (trailing twelve months)."
@@ -119,7 +107,7 @@ class SearchLineItemsInput(BaseModel):
     )
 
     class Config:
-        json_schema_extra= {
+        schema_extra = {
             "example": {
                 "tickers": ["AAPL", "GOOGL"],
                 "line_items": ["revenue", "net_income", "total_assets"],
@@ -129,6 +117,7 @@ class SearchLineItemsInput(BaseModel):
                 "end_date": "2024-09-01"
             }
         }
+
 
 
 @tool("search-line-items", args_schema=SearchLineItemsInput, return_direct=True)
@@ -141,66 +130,38 @@ def search_line_items(
     end_date: str = None
 ) -> Union[Dict, str]:
     """
-    Search for specified financial line items across multiple tickers over a given time period.
+    Search for specific financial line items across multiple company tickers over a specified time period.
 
-    Parameters:
-        tickers (List[str]): List of stock tickers to query.
-        line_items (List[str]): List of financial line items to retrieve.
-        period (str, optional): Time period to query. Defaults to 'ttm' (trailing twelve months).
-        limit (int, optional): Maximum number of results per ticker. Defaults to 1.
-        start_date (str, optional): Start date filter in YYYY-MM-DD format.
-        end_date (str, optional): End date filter in YYYY-MM-DD format.
-
-    Returns:
-        Union[Dict, str]: JSON response from the API containing the requested data,
-                          or an error message if the request fails.
+    Note: This tool accesses real financial data and should be used when specific, factual financial line items are required.
     """
     BASE_URL = "https://api.financialdatasets.ai/"
-    api_key = os.environ.get("FINANCIAL_DATASETS_API_KEY")
 
-    # Ensure API key is provided in environment variables
+    api_key = os.environ.get("FINANCIAL_DATASETS_API_KEY")
     if not api_key:
         raise ValueError("Missing FINANCIAL_DATASETS_API_KEY.")
 
     url = f"{BASE_URL}financials/search/line-items"
 
-    # Prepare request payload with required and optional parameters
     payload = {
         "tickers": tickers,
         "line_items": line_items,
         "period": period,
         "limit": limit
     }
+
     if start_date:
         payload["start_date"] = start_date
     if end_date:
         payload["end_date"] = end_date
 
     try:
-        # Make POST request to the financial datasets API with API key in headers
         response = requests.post(
             url,
             json=payload,
             headers={'X-API-Key': api_key, 'Content-Type': 'application/json'}
         )
-        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
-
-        # Return JSON response as dictionary
-        return response.json()
-
+        response.raise_for_status()  # Raises an HTTPError for bad responses
+        data = response.json()
+        return data
     except requests.exceptions.RequestException as e:
-        # Return error details in a dictionary for downstream handling
         return {"search_results": [], "error": str(e)}
-
-
-if __name__ == "__main__":
-    # Example usage for testing the search_line_items function
-    result = search_line_items(
-        tickers=["AAPL", "MSFT"],
-        line_items=["revenue", "net_income"],
-        period="annual",
-        limit=3,
-        start_date="2020-01-01",
-        end_date="2024-01-01"
-    )
-    print(result)

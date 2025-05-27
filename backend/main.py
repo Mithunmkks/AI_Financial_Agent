@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from component.stock_analysis import ask_agent
-from component.sentiment_analysis import analyze_stock_news
+from backend.component.stock_analysis import ask_agent
+from backend.component.sentiment_analysis import analyze_stock_news
 from pydantic import BaseModel
 
 app = FastAPI()
