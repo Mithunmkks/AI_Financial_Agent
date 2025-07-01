@@ -1,0 +1,17 @@
+fastapi
+pydantic
+python-dotenv
+requests
+uvicorn[standard]
+langchain-core
+langchain-community
+langchain-openai
+langchain
+langgraph
+langsmith
+tavily-python
+langsmith
+openai
+pandas
+prophet
+
