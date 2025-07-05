@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from langchain.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import date
 from enum import Enum
@@ -105,7 +105,7 @@ class SearchLineItemsInput(BaseModel):
     )
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "tickers": ["AAPL", "GOOGL"],
                 "line_items": ["revenue", "net_income", "total_assets"],

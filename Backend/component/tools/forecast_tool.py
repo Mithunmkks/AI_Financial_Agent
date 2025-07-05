@@ -1,7 +1,7 @@
 from typing import Dict, Union
 from dotenv import load_dotenv
 from langchain.tools import tool
-from langchain.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 
 from component.stock_prediction import predict_stock_prices
 

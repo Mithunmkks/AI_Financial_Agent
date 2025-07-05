@@ -2,7 +2,7 @@
 
 import os
 from typing import Dict, Union
-from langchain.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool

@@ -161,7 +161,7 @@ workflow.add_edge("tools", "output")
 # This compiles it into a LangChain Runnable,
 # meaning you can use it as you would any other runnable.
 # Note that we're (optionally) passing the memory when compiling the graph
-app = workflow.compile()
+chain = workflow.compile()
 
 ### ----------------------------- Run the Workflow ----------------------------- ###
 def ask_agent(question: str) -> str:
@@ -172,7 +172,7 @@ def ask_agent(question: str) -> str:
     print("New Question Asked:", question)
     print("==========================")
 
-    final_state = app.invoke(
+    final_state = chain.invoke(
         {"messages": [HumanMessage(content=question)]},
         config={"configurable": {"thread_id": 42}}
     )

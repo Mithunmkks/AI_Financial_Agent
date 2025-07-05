@@ -7,14 +7,14 @@ import { Badge } from '@/components/ui/badge.jsx'
 import { Alert, AlertDescription } from '@/components/ui/alert.jsx'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog.jsx'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table.jsx'
-import { 
-  Plus, 
-  Trash2, 
-  TrendingUp, 
-  TrendingDown, 
-  Minus, 
-  DollarSign, 
-  Briefcase, 
+import {
+  Plus,
+  Trash2,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  DollarSign,
+  Briefcase,
   Target,
   Loader2,
   AlertCircle,
@@ -28,7 +28,7 @@ import axios from 'axios'
 
 const PortfolioManager = () => {
   const [portfolio, setPortfolio] = useState([])
-  const [recommendations, setRecommendations] = useState(null)
+  const [recommendations, setRecommendations] = useState([]) 
   const [isLoading, setIsLoading] = useState(false)
   const [isAddingStock, setIsAddingStock] = useState(false)
   const [newStock, setNewStock] = useState({
@@ -71,7 +71,7 @@ const PortfolioManager = () => {
       const updatedPortfolio = [...portfolio]
       updatedPortfolio[existingIndex] = {
         ...updatedPortfolio[existingIndex],
-        buy_price: ((updatedPortfolio[existingIndex].buy_price * updatedPortfolio[existingIndex].quantity) + 
+        buy_price: ((updatedPortfolio[existingIndex].buy_price * updatedPortfolio[existingIndex].quantity) +
                    (stock.buy_price * stock.quantity)) / (updatedPortfolio[existingIndex].quantity + stock.quantity),
         quantity: updatedPortfolio[existingIndex].quantity + stock.quantity
       }
@@ -108,14 +108,19 @@ const PortfolioManager = () => {
     }
 
     setIsLoading(true)
+    let allRecommendations = []
     
     try {
-      // Replace with your actual backend URL
-      const response = await axios.post('http://localhost:8000/portfolio/recommendation', {
-        portfolio: portfolio
-      })
+      for (const stock of portfolio) {
+        const response = await axios.post('http://localhost:8000/portfolio/recommendation', {
+          portfolio: [stock] // Send one stock at a time
+        })
+        if (response.data && response.data.recommendation) {
+          allRecommendations = [...allRecommendations, ...response.data.recommendation]
+        }
+      }
 
-      setRecommendations(response.data)
+      setRecommendations(allRecommendations)
       
       toast({
         title: "Recommendations Generated",
@@ -240,6 +245,7 @@ const PortfolioManager = () => {
                       <Label htmlFor="ticker">Stock Ticker</Label>
                       <Input
                         id="ticker"
+                        name="ticker"
                         value={newStock.ticker}
                         onChange={(e) => setNewStock({...newStock, ticker: e.target.value})}
                         placeholder="e.g., AAPL"
@@ -250,6 +256,7 @@ const PortfolioManager = () => {
                       <Label htmlFor="buy_price">Buy Price ($)</Label>
                       <Input
                         id="buy_price"
+                        name="buy_price"
                         type="number"
                         step="0.01"
                         value={newStock.buy_price}
@@ -261,6 +268,7 @@ const PortfolioManager = () => {
                       <Label htmlFor="quantity">Quantity</Label>
                       <Input
                         id="quantity"
+                        name="quantity"
                         type="number"
                         value={newStock.quantity}
                         onChange={(e) => setNewStock({...newStock, quantity: e.target.value})}
@@ -398,8 +406,8 @@ const PortfolioManager = () => {
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          {recommendations ? (
+        <CardContent className="max-h-96 overflow-y-auto">
+          {recommendations && recommendations.length > 0 ? (
             <div className="space-y-4">
               {recommendations.map((rec, index) => (
                 <Card key={index} className="border-l-4 border-l-blue-500">
@@ -458,4 +466,5 @@ const PortfolioManager = () => {
 }
 
 export default PortfolioManager
+
 

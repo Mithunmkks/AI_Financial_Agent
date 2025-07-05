@@ -1,4 +1,4 @@
-from langchain.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from typing import Dict, Union
 import requests
@@ -51,7 +51,7 @@ class TavilySearchInput(BaseModel):
     )
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "query": "Latest advancements in AI",
                 "api_key": "your-api-key-here",

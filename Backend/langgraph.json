@@ -1,0 +1,8 @@
+{
+  "graphs": {
+    "default": {
+      "entrypoint": "component.stock_analysis:chain"
+    }
+  },
+  "port": 4000
+}
